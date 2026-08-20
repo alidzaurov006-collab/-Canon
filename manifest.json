@@ -1,0 +1,1 @@
+{"display_name":"Canon Keeper","loading_order":20,"requires":[],"optional":[],"generate_interceptor":"canonKeeperGenerateInterceptor","js":"index.js","css":"style.css","author":"OpenAI","version":"0.1.0","homePage":"https://docs.sillytavern.app/for-contributors/writing-extensions/","hooks":{"activate":"init"}}
