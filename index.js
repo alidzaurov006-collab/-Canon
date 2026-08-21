@@ -512,3 +512,579 @@ jQuery(function () {
     console.log('[Canon Keeper] loaded successfully');
 
 });
+// =========================================================
+// ПЛАВАЮЩИЙ ВИДЖЕТ CANON KEEPER
+// Одно нажатие = открыть Canon Keeper
+// Долгое нажатие / движение = переместить виджет
+// =========================================================
+
+if ($('#canon-keeper-floating-widget').length === 0) {
+
+    // -----------------------------------------------------
+    // CSS
+    // -----------------------------------------------------
+
+    if ($('#canon-keeper-floating-style').length === 0) {
+
+        $('head').append(`
+            <style id="canon-keeper-floating-style">
+
+                #canon-keeper-floating-widget {
+
+                    position: fixed;
+
+                    width: 58px;
+                    height: 58px;
+
+                    right: 18px;
+                    bottom: 100px;
+
+                    z-index: 999998;
+
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+
+                    border-radius: 50%;
+
+                    background: #242424;
+
+                    border: 2px solid #666;
+
+                    box-shadow:
+                        0 5px 18px rgba(0,0,0,0.6);
+
+                    color: #eeeeee;
+
+                    font-size: 28px;
+
+                    cursor: grab;
+
+                    user-select: none;
+                    -webkit-user-select: none;
+
+                    touch-action: none;
+
+                    -webkit-tap-highlight-color: transparent;
+
+                    transition:
+                        transform 0.12s ease,
+                        box-shadow 0.12s ease;
+                }
+
+
+                #canon-keeper-floating-widget.canon-dragging {
+
+                    cursor: grabbing;
+
+                    transform: scale(1.08);
+
+                    box-shadow:
+                        0 8px 25px rgba(0,0,0,0.75);
+                }
+
+            </style>
+        `);
+    }
+
+
+    // -----------------------------------------------------
+    // Создаём виджет
+    // -----------------------------------------------------
+
+    const canonFloatingWidget = $(`
+        <div
+            id="canon-keeper-floating-widget"
+            title="Canon Keeper">
+
+            📖
+
+        </div>
+    `);
+
+
+    $('body').append(canonFloatingWidget);
+
+
+    // -----------------------------------------------------
+    // Восстанавливаем сохранённую позицию
+    // -----------------------------------------------------
+
+    try {
+
+        const saved =
+            JSON.parse(
+                localStorage.getItem(
+                    'canonKeeperWidgetPosition'
+                ) || 'null'
+            );
+
+
+        if (
+            saved &&
+            typeof saved.left === 'number' &&
+            typeof saved.top === 'number'
+        ) {
+
+            canonFloatingWidget.css({
+
+                left: saved.left + 'px',
+                top: saved.top + 'px',
+
+                right: 'auto',
+                bottom: 'auto'
+
+            });
+
+        }
+
+    } catch (error) {
+
+        console.log(
+            '[Canon Keeper] Не удалось восстановить позицию виджета'
+        );
+
+    }
+
+
+    // -----------------------------------------------------
+    // Переменные управления
+    // -----------------------------------------------------
+
+    let startX = 0;
+    let startY = 0;
+
+    let startLeft = 0;
+    let startTop = 0;
+
+    let dragging = false;
+
+    let moved = false;
+
+    let pressTimer = null;
+
+    let pointerId = null;
+
+
+    // -----------------------------------------------------
+    // НАЖАТИЕ
+    // -----------------------------------------------------
+
+    canonFloatingWidget.on(
+        'pointerdown',
+        function (event) {
+
+            event.preventDefault();
+
+            pointerId = event.pointerId;
+
+
+            const rect =
+                this.getBoundingClientRect();
+
+
+            startX =
+                event.clientX;
+
+            startY =
+                event.clientY;
+
+
+            startLeft =
+                rect.left;
+
+            startTop =
+                rect.top;
+
+
+            dragging = false;
+            moved = false;
+
+
+            try {
+
+                this.setPointerCapture(
+                    event.pointerId
+                );
+
+            } catch (e) {}
+
+
+            // Через 400 мс считаем нажатие долгим
+
+            pressTimer =
+                setTimeout(function () {
+
+                    dragging = true;
+
+                    canonFloatingWidget.addClass(
+                        'canon-dragging'
+                    );
+
+                }, 400);
+
+        }
+    );
+
+
+    // -----------------------------------------------------
+    // ДВИЖЕНИЕ
+    // -----------------------------------------------------
+
+    canonFloatingWidget.on(
+        'pointermove',
+        function (event) {
+
+            if (
+                pointerId !== event.pointerId
+            ) {
+                return;
+            }
+
+
+            const deltaX =
+                event.clientX - startX;
+
+            const deltaY =
+                event.clientY - startY;
+
+
+            // Небольшое движение игнорируем
+
+            if (
+                Math.abs(deltaX) > 8 ||
+                Math.abs(deltaY) > 8
+            ) {
+
+                moved = true;
+
+                dragging = true;
+
+                clearTimeout(
+                    pressTimer
+                );
+
+                canonFloatingWidget.addClass(
+                    'canon-dragging'
+                );
+
+            }
+
+
+            if (!dragging) {
+                return;
+            }
+
+
+            const width =
+                canonFloatingWidget.outerWidth();
+
+
+            const height =
+                canonFloatingWidget.outerHeight();
+
+
+            let newLeft =
+                startLeft + deltaX;
+
+
+            let newTop =
+                startTop + deltaY;
+
+
+            // -------------------------------------------------
+            // Ограничения экрана
+            // -------------------------------------------------
+
+            const minLeft = 0;
+
+            const maxLeft =
+                window.innerWidth - width;
+
+
+            /*
+             * Не позволяем виджету залезать
+             * на самый верхний системный / интерфейсный участок.
+             */
+
+            const minTop = 70;
+
+
+            /*
+             * Оставляем немного места
+             * над нижней панелью приложения.
+             */
+
+            const maxTop =
+                window.innerHeight - height - 70;
+
+
+            newLeft =
+                Math.max(
+                    minLeft,
+                    Math.min(
+                        newLeft,
+                        maxLeft
+                    )
+                );
+
+
+            newTop =
+                Math.max(
+                    minTop,
+                    Math.min(
+                        newTop,
+                        maxTop
+                    )
+                );
+
+
+            canonFloatingWidget.css({
+
+                left: newLeft + 'px',
+                top: newTop + 'px',
+
+                right: 'auto',
+                bottom: 'auto'
+
+            });
+
+        }
+    );
+
+
+    // -----------------------------------------------------
+    // ОТПУСКАНИЕ
+    // -----------------------------------------------------
+
+    canonFloatingWidget.on(
+        'pointerup pointercancel',
+        function (event) {
+
+            clearTimeout(
+                pressTimer
+            );
+
+
+            const wasDragging =
+                dragging;
+
+
+            // ---------------------------------------------
+            // Если двигали — сохраняем положение
+            // ---------------------------------------------
+
+            if (wasDragging) {
+
+                const rect =
+                    this.getBoundingClientRect();
+
+
+                try {
+
+                    localStorage.setItem(
+                        'canonKeeperWidgetPosition',
+
+                        JSON.stringify({
+
+                            left: rect.left,
+                            top: rect.top
+
+                        })
+                    );
+
+                } catch (error) {
+
+                    console.log(
+                        '[Canon Keeper] Не удалось сохранить позицию'
+                    );
+
+                }
+
+
+                canonFloatingWidget.removeClass(
+                    'canon-dragging'
+                );
+
+            }
+
+
+            // ---------------------------------------------
+            // Если не двигали — это обычный тап
+            // ---------------------------------------------
+
+            if (!wasDragging && !moved) {
+
+                openCanonKeeper();
+
+            }
+
+
+            dragging = false;
+            moved = false;
+            pointerId = null;
+
+        }
+    );
+
+
+    // -----------------------------------------------------
+    // Поиск существующей кнопки Canon Keeper
+    // -----------------------------------------------------
+
+    function openCanonKeeper() {
+
+        let found = false;
+
+
+        /*
+         * Ищем уже существующий элемент Canon Keeper.
+         * Саму рабочую систему не заменяем.
+         */
+
+        $('button, a, div, span').each(
+            function () {
+
+                if (found) {
+                    return;
+                }
+
+
+                const text =
+                    $(this)
+                        .clone()
+                        .children()
+                        .remove()
+                        .end()
+                        .text()
+                        .trim();
+
+
+                if (
+                    text === 'Canon Keeper'
+                ) {
+
+                    found = true;
+
+                    $(this).trigger('click');
+
+                }
+
+            }
+        );
+
+
+        /*
+         * Если текстовый элемент не найден,
+         * пробуем найти элемент по ID / классу.
+         */
+
+        if (!found) {
+
+            const selectors = [
+
+                '#canon-keeper',
+                '#canonKeeper',
+                '.canon-keeper',
+                '[data-canon-keeper]'
+
+            ];
+
+
+            for (
+                let i = 0;
+                i < selectors.length;
+                i++
+            ) {
+
+                const target =
+                    $(selectors[i]);
+
+
+                if (target.length) {
+
+                    found = true;
+
+                    target.first().trigger('click');
+
+                    break;
+
+                }
+
+            }
+
+        }
+
+
+        if (!found) {
+
+            console.log(
+                '[Canon Keeper] Кнопка Canon Keeper не найдена'
+            );
+
+        }
+
+    }
+
+
+    // -----------------------------------------------------
+    // Если экран изменил размер —
+    // возвращаем виджет в пределы экрана
+    // -----------------------------------------------------
+
+    $(window).on(
+        'resize.canonKeeperWidget',
+        function () {
+
+            const rect =
+                canonFloatingWidget[0]
+                    .getBoundingClientRect();
+
+
+            const width =
+                canonFloatingWidget.outerWidth();
+
+
+            const height =
+                canonFloatingWidget.outerHeight();
+
+
+            let left =
+                Math.max(
+                    0,
+                    Math.min(
+                        rect.left,
+                        window.innerWidth - width
+                    )
+                );
+
+
+            let top =
+                Math.max(
+                    70,
+                    Math.min(
+                        rect.top,
+                        window.innerHeight - height - 70
+                    )
+                );
+
+
+            canonFloatingWidget.css({
+
+                left: left + 'px',
+                top: top + 'px',
+
+                right: 'auto',
+                bottom: 'auto'
+
+            });
+
+        }
+    );
+
+
+    console.log(
+        '[Canon Keeper] Плавающий виджет создан'
+    );
+
+                }
