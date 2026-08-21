@@ -4,22 +4,37 @@ jQuery(function () {
     // CANON KEEPER
     // =========================================================
 
+    const BUTTON_ID = 'canon-keeper-button';
+    const OVERLAY_ID = 'canon-keeper-overlay';
+    const STORAGE_KEY = 'canonKeeperRules';
+
+
+    // =========================================================
+    // КНОПКА CANON KEEPER В EXTENSIONS
+    // =========================================================
+
     const buttonHtml = `
-        <div id="canon-keeper-button"
+        <div id="${BUTTON_ID}"
              class="list-group-item flex-container flexGap5">
             <div class="fa-solid fa-book extensionsMenuExtensionButton"></div>
             Canon Keeper
         </div>
     `;
 
-    // Не создаём кнопку повторно
-    if ($('#canon-keeper-button').length === 0) {
+    if ($('#' + BUTTON_ID).length === 0) {
         $('#extensionsMenu').prepend(buttonHtml);
     }
 
 
+    $('#' + BUTTON_ID)
+        .off('click.canonKeeper')
+        .on('click.canonKeeper', function () {
+            openCanonKeeper();
+        });
+
+
     // =========================================================
-    // CSS
+    // CANON KEEPER — ОКНО
     // =========================================================
 
     if ($('#canon-keeper-style').length === 0) {
@@ -27,10 +42,13 @@ jQuery(function () {
         $('head').append(`
             <style id="canon-keeper-style">
 
-                /* Затемнение фона */
-                #canon-keeper-overlay {
+                #${OVERLAY_ID} {
                     position: fixed;
-                    inset: 0;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+
                     z-index: 99990;
 
                     background: rgba(0, 0, 0, 0.55);
@@ -39,41 +57,34 @@ jQuery(function () {
                     justify-content: center;
                     align-items: flex-start;
 
-                    /*
-                     * Оставляем место для верхней панели Tavern.
-                     */
-                    padding-top: 175px;
-                    padding-left: 12px;
-                    padding-right: 12px;
-                    padding-bottom: 20px;
-
                     box-sizing: border-box;
+
+                    padding-top: 175px;
+                    padding-left: 8px;
+                    padding-right: 8px;
+                    padding-bottom: 12px;
                 }
 
 
-                /* Само окно */
                 #canon-keeper-modal {
-
                     position: relative;
 
-                    width: min(680px, 100%);
-                    max-width: 680px;
+                    width: 100%;
+                    max-width: 760px;
 
-                    /*
-                     * Окно никогда не будет выше экрана.
-                     */
-                    max-height: calc(100vh - 195px);
+                    height: calc(100vh - 187px);
+                    max-height: calc(100vh - 187px);
 
                     box-sizing: border-box;
 
                     background: #171717;
                     color: #eeeeee;
 
-                    border: 1px solid #292929;
+                    border: 1px solid #303030;
                     border-radius: 22px;
 
                     box-shadow:
-                        0 15px 50px rgba(0,0,0,0.75);
+                        0 15px 55px rgba(0, 0, 0, 0.80);
 
                     overflow: hidden;
 
@@ -82,17 +93,14 @@ jQuery(function () {
                 }
 
 
-                /*
-                 * Верхняя часть окна.
-                 * Она НЕ прокручивается.
-                 */
                 #canon-keeper-header {
-
                     flex: 0 0 auto;
+
+                    position: relative;
 
                     padding:
                         22px
-                        22px
+                        65px
                         16px
                         22px;
 
@@ -103,7 +111,6 @@ jQuery(function () {
 
 
                 #canon-keeper-header h2 {
-
                     margin: 0;
 
                     font-size: 34px;
@@ -114,10 +121,9 @@ jQuery(function () {
 
 
                 #canon-keeper-header .canon-subtitle {
+                    margin-top: 10px;
 
-                    margin-top: 12px;
-
-                    font-size: 22px;
+                    font-size: 21px;
                     line-height: 1.3;
 
                     color: #dddddd;
@@ -125,27 +131,23 @@ jQuery(function () {
 
 
                 #canon-keeper-header hr {
-
-                    margin-top: 18px;
-                    margin-bottom: 0;
+                    margin: 18px 0 0 0;
 
                     border: 0;
                     border-top: 1px solid #333333;
                 }
 
 
-                /*
-                 * Крестик
-                 */
                 #canon-keeper-close {
-
                     position: absolute;
 
                     top: 12px;
                     right: 12px;
 
-                    width: 42px;
-                    height: 42px;
+                    width: 46px;
+                    height: 46px;
+
+                    padding: 0;
 
                     border: 0;
                     border-radius: 50%;
@@ -153,28 +155,19 @@ jQuery(function () {
                     background: #eeeeee;
                     color: #222222;
 
-                    font-size: 25px;
+                    font-size: 28px;
                     font-weight: bold;
 
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
+                    line-height: 46px;
+                    text-align: center;
 
-                    z-index: 10;
+                    z-index: 20;
 
                     cursor: pointer;
                 }
 
 
-                /*
-                 * Прокручиваемая часть.
-                 *
-                 * ВАЖНО:
-                 * теперь прокручивается только содержимое окна,
-                 * а верхняя панель и крестик остаются на месте.
-                 */
                 #canon-keeper-content {
-
                     flex: 1 1 auto;
 
                     min-height: 0;
@@ -182,25 +175,25 @@ jQuery(function () {
                     overflow-y: auto;
                     overflow-x: hidden;
 
-                    padding:
-                        0
-                        22px
-                        25px
-                        22px;
+                    -webkit-overflow-scrolling: touch;
 
                     box-sizing: border-box;
 
-                    -webkit-overflow-scrolling: touch;
+                    padding:
+                        0
+                        20px
+                        30px
+                        20px;
                 }
 
 
-                /* Заголовок "Канон" */
                 #canon-keeper-content .canon-section-title {
-
                     text-align: center;
 
                     font-size: 30px;
                     font-weight: bold;
+
+                    line-height: 1.25;
 
                     margin:
                         8px
@@ -210,13 +203,11 @@ jQuery(function () {
                 }
 
 
-                /*
-                 * Поле ввода
-                 */
                 #canon-keeper-input {
+                    display: block;
 
                     width: 100%;
-                    min-height: 150px;
+                    min-height: 145px;
 
                     box-sizing: border-box;
 
@@ -224,13 +215,13 @@ jQuery(function () {
 
                     padding: 18px;
 
-                    border-radius: 14px;
                     border: 2px solid #444444;
+                    border-radius: 14px;
 
-                    background: #0e0e0e;
+                    background: #0d0d0d;
                     color: #eeeeee;
 
-                    font-size: 20px;
+                    font-size: 19px;
                     line-height: 1.45;
 
                     outline: none;
@@ -238,30 +229,29 @@ jQuery(function () {
 
 
                 #canon-keeper-input:focus {
-
-                    border-color: #777777;
+                    border-color: #707070;
                 }
 
 
                 #canon-keeper-input::placeholder {
-
                     color: #777777;
                 }
 
 
-                /*
-                 * Кнопка "Добавить правило"
-                 */
                 #canon-keeper-add {
+                    display: block;
 
                     width: 100%;
-
-                    margin-top: 16px;
-
                     min-height: 60px;
 
-                    border-radius: 14px;
+                    margin-top: 15px;
+
+                    padding: 8px 12px;
+
+                    box-sizing: border-box;
+
                     border: 2px solid #444444;
+                    border-radius: 14px;
 
                     background: #242424;
                     color: #eeeeee;
@@ -273,49 +263,35 @@ jQuery(function () {
                 }
 
 
-                #canon-keeper-add:active {
-
-                    transform: scale(0.98);
-                }
-
-
-                /*
-                 * Карточка правила
-                 */
                 .canon-keeper-rule {
+                    width: 100%;
 
                     margin-top: 18px;
 
                     padding: 20px;
 
+                    box-sizing: border-box;
+
+                    border: 2px solid #3d3d3d;
                     border-radius: 16px;
 
-                    border: 2px solid #3c3c3c;
-
                     background: #202020;
-
-                    box-sizing: border-box;
                 }
 
 
                 .canon-keeper-rule-text {
+                    font-size: 20px;
 
-                    font-size: 21px;
                     line-height: 1.45;
 
                     color: #eeeeee;
 
                     white-space: pre-wrap;
-
                     word-break: break-word;
                 }
 
 
-                /*
-                 * Кнопки правила
-                 */
                 .canon-keeper-rule-buttons {
-
                     display: flex;
 
                     gap: 12px;
@@ -325,14 +301,17 @@ jQuery(function () {
 
 
                 .canon-keeper-rule-buttons button {
-
                     flex: 1;
 
+                    min-width: 0;
                     min-height: 54px;
 
-                    border-radius: 12px;
+                    padding: 8px 6px;
+
+                    box-sizing: border-box;
 
                     border: 1px solid #555555;
+                    border-radius: 12px;
 
                     background: #303030;
                     color: #eeeeee;
@@ -343,26 +322,20 @@ jQuery(function () {
                 }
 
 
-                .canon-keeper-rule-buttons button:active {
-
-                    transform: scale(0.98);
-                }
-
-
-                /*
-                 * Кнопка копирования всего канона
-                 */
                 #canon-keeper-copy {
+                    display: block;
 
                     width: 100%;
+                    min-height: 58px;
 
                     margin-top: 22px;
 
-                    min-height: 58px;
+                    padding: 8px 12px;
 
-                    border-radius: 14px;
+                    box-sizing: border-box;
 
                     border: 2px solid #444444;
+                    border-radius: 14px;
 
                     background: #242424;
                     color: #eeeeee;
@@ -374,77 +347,90 @@ jQuery(function () {
                 }
 
 
-                /*
-                 * На маленьких экранах
-                 */
+                /* =================================================
+                   ПЛАВАЮЩИЙ ВИДЖЕТ
+                   ================================================= */
+
+                #canon-keeper-floating-widget {
+
+                    position: fixed;
+
+                    width: 58px;
+                    height: 58px;
+
+                    right: 18px;
+                    bottom: 90px;
+
+                    z-index: 999999;
+
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+
+                    box-sizing: border-box;
+
+                    border-radius: 50%;
+
+                    background: #242424;
+
+                    border: 2px solid #555555;
+
+                    box-shadow:
+                        0 5px 18px rgba(0,0,0,0.55);
+
+                    color: #eeeeee;
+
+                    font-size: 28px;
+
+                    cursor: grab;
+
+                    user-select: none;
+                    -webkit-user-select: none;
+
+                    touch-action: none;
+                }
+
+
+                #canon-keeper-floating-widget.canon-dragging {
+
+                    cursor: grabbing;
+
+                    transform: scale(1.08);
+
+                    box-shadow:
+                        0 8px 25px rgba(0,0,0,0.7);
+                }
+
+
                 @media (max-width: 600px) {
 
-                    #canon-keeper-overlay {
-
-                        padding-top: 175px;
-                        padding-left: 8px;
-                        padding-right: 8px;
-                        padding-bottom: 12px;
-                    }
-
-
                     #canon-keeper-modal {
-
-                        width: 100%;
-
-                        max-height: calc(100vh - 187px);
-
-                        border-radius: 18px;
+                        height: calc(100vh - 183px);
+                        max-height: calc(100vh - 183px);
                     }
-
 
                     #canon-keeper-header {
-
                         padding:
                             18px
-                            18px
+                            60px
                             14px
                             18px;
                     }
 
-
                     #canon-keeper-header h2 {
-
                         font-size: 30px;
                     }
 
-
-                    #canon-keeper-header .canon-subtitle {
-
-                        font-size: 20px;
-                    }
-
-
                     #canon-keeper-content {
-
-                        padding-left: 16px;
-                        padding-right: 16px;
-                        padding-bottom: 20px;
+                        padding:
+                            0
+                            14px
+                            25px
+                            14px;
                     }
-
-
-                    #canon-keeper-content .canon-section-title {
-
-                        font-size: 27px;
-                    }
-
 
                     #canon-keeper-input {
-
-                        min-height: 140px;
-
-                        font-size: 19px;
-                    }
-
-
-                    .canon-keeper-rule-text {
-
-                        font-size: 19px;
+                        min-height: 135px;
                     }
                 }
 
@@ -454,63 +440,45 @@ jQuery(function () {
 
 
     // =========================================================
-    // ОТКРЫТИЕ CANON KEEPER
-    // =========================================================
-
-    $('#canon-keeper-button')
-        .off('click.canonKeeper')
-        .on('click.canonKeeper', function () {
-
-            openCanonKeeper();
-
-        });
-
-
-    // =========================================================
-    // ОСНОВНАЯ ФУНКЦИЯ
+    // ОТКРЫТЬ CANON KEEPER
     // =========================================================
 
     function openCanonKeeper() {
 
-        // Если окно уже открыто — ничего не создаём второй раз
-        if ($('#canon-keeper-overlay').length) {
+        if ($('#' + OVERLAY_ID).length) {
             return;
         }
 
-
-        // -----------------------------------------------------
-        // Получаем сохранённые правила
-        // -----------------------------------------------------
 
         let rules = [];
 
         try {
 
-            rules = JSON.parse(
-                localStorage.getItem('canonKeeperRules') || '[]'
-            );
+            const saved =
+                localStorage.getItem(STORAGE_KEY);
 
-            if (!Array.isArray(rules)) {
-                rules = [];
+            if (saved) {
+
+                const parsed =
+                    JSON.parse(saved);
+
+                if (Array.isArray(parsed)) {
+                    rules = parsed;
+                }
             }
 
-        } catch (e) {
+        } catch (error) {
 
             console.error(
-                '[Canon Keeper] Ошибка чтения правил:',
-                e
+                '[Canon Keeper] Ошибка загрузки:',
+                error
             );
 
-            rules = [];
         }
 
 
-        // -----------------------------------------------------
-        // Создаём окно
-        // -----------------------------------------------------
-
         const overlay = $(`
-            <div id="canon-keeper-overlay">
+            <div id="${OVERLAY_ID}">
 
                 <div id="canon-keeper-modal">
 
@@ -574,20 +542,40 @@ jQuery(function () {
         $('body').append(overlay);
 
 
-        // -----------------------------------------------------
-        // Рендер правил
-        // -----------------------------------------------------
+        // =====================================================
+        // СОХРАНЕНИЕ
+        // =====================================================
+
+        function saveRules() {
+
+            try {
+
+                localStorage.setItem(
+                    STORAGE_KEY,
+                    JSON.stringify(rules)
+                );
+
+            } catch (error) {
+
+                console.error(
+                    '[Canon Keeper] Ошибка сохранения:',
+                    error
+                );
+
+            }
+        }
+
+
+        // =====================================================
+        // ОТОБРАЖЕНИЕ ПРАВИЛ
+        // =====================================================
 
         function renderRules() {
 
-            const container = $('#canon-keeper-rules');
+            const container =
+                $('#canon-keeper-rules');
 
             container.empty();
-
-
-            if (rules.length === 0) {
-                return;
-            }
 
 
             rules.forEach(function (rule, index) {
@@ -621,14 +609,14 @@ jQuery(function () {
                     .text(rule);
 
 
-                // Изменить
                 card.find('.canon-keeper-edit')
                     .on('click', function () {
 
-                        const newRule = prompt(
-                            'Измени правило канона:',
-                            rule
-                        );
+                        const newRule =
+                            prompt(
+                                'Измени правило канона:',
+                                rule
+                            );
 
 
                         if (
@@ -636,16 +624,18 @@ jQuery(function () {
                             newRule.trim() !== ''
                         ) {
 
-                            rules[index] = newRule.trim();
+                            rules[index] =
+                                newRule.trim();
 
                             saveRules();
+
                             renderRules();
+
                         }
 
                     });
 
 
-                // Удалить
                 card.find('.canon-keeper-delete')
                     .on('click', function () {
 
@@ -655,10 +645,15 @@ jQuery(function () {
                             )
                         ) {
 
-                            rules.splice(index, 1);
+                            rules.splice(
+                                index,
+                                1
+                            );
 
                             saveRules();
+
                             renderRules();
+
                         }
 
                     });
@@ -671,36 +666,9 @@ jQuery(function () {
         }
 
 
-        // -----------------------------------------------------
-        // Сохранение
-        // -----------------------------------------------------
-
-        function saveRules() {
-
-            try {
-
-                localStorage.setItem(
-                    'canonKeeperRules',
-                    JSON.stringify(rules)
-                );
-
-            } catch (e) {
-
-                console.error(
-                    '[Canon Keeper] Ошибка сохранения:',
-                    e
-                );
-
-                alert(
-                    'Не удалось сохранить канон.'
-                );
-            }
-        }
-
-
-        // -----------------------------------------------------
-        // Добавить правило
-        // -----------------------------------------------------
+        // =====================================================
+        // ДОБАВИТЬ ПРАВИЛО
+        // =====================================================
 
         $('#canon-keeper-add')
             .on('click', function () {
@@ -735,9 +703,9 @@ jQuery(function () {
             });
 
 
-        // -----------------------------------------------------
-        // Копировать весь канон
-        // -----------------------------------------------------
+        // =====================================================
+        // КОПИРОВАТЬ КАНОН
+        // =====================================================
 
         $('#canon-keeper-copy')
             .on('click', async function () {
@@ -755,28 +723,28 @@ jQuery(function () {
                 const canonText =
                     rules
                         .map(function (rule, index) {
+
                             return (
                                 (index + 1) +
                                 '. ' +
                                 rule
                             );
+
                         })
                         .join('\n');
 
 
                 try {
 
-                    await navigator.clipboard.writeText(
-                        canonText
-                    );
+                    await navigator.clipboard
+                        .writeText(canonText);
 
                     alert(
                         'Канон скопирован!'
                     );
 
-                } catch (e) {
+                } catch (error) {
 
-                    // Запасной вариант
                     const textarea =
                         $('<textarea>')
                             .val(canonText)
@@ -796,142 +764,48 @@ jQuery(function () {
             });
 
 
-        // -----------------------------------------------------
-        // Закрытие
-        // -----------------------------------------------------
+        // =====================================================
+        // ЗАКРЫТЬ
+        // =====================================================
 
         $('#canon-keeper-close')
             .on('click', function () {
 
-                $('#canon-keeper-overlay')
-                    .remove();
+                $('#' + OVERLAY_ID).remove();
 
             });
 
 
-        // Закрытие по нажатию вне окна
-        $('#canon-keeper-overlay')
+        $('#' + OVERLAY_ID)
             .on('click', function (event) {
 
-                if (
-                    event.target ===
-                    this
-                ) {
-
+                if (event.target === this) {
                     $(this).remove();
-
                 }
 
             });
 
 
-        // -----------------------------------------------------
-        // Первичный вывод
-        // -----------------------------------------------------
+        // =====================================================
+        // РЕНДЕР
+        // =====================================================
 
         renderRules();
 
-
-        console.log(
-            '[Canon Keeper] окно открыто'
-        );
     }
 
 
-    console.log(
-        '[Canon Keeper] готов'
-    );
-
-});    // =========================================================
-    // ПЛАВАЮЩИЙ ВИДЖЕТ CANON KEEPER
+    // =========================================================
+    // ПЛАВАЮЩИЙ ВИДЖЕТ
     // =========================================================
 
     if ($('#canon-keeper-floating-widget').length === 0) {
-
-        // -----------------------------------------------------
-        // CSS виджета
-        // -----------------------------------------------------
-
-        if ($('#canon-keeper-floating-style').length === 0) {
-
-            $('head').append(`
-                <style id="canon-keeper-floating-style">
-
-                    #canon-keeper-floating-widget {
-
-                        position: fixed;
-
-                        width: 58px;
-                        height: 58px;
-
-                        right: 18px;
-                        bottom: 90px;
-
-                        z-index: 999999;
-
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-
-                        border-radius: 50%;
-
-                        background: #242424;
-
-                        border: 2px solid #555;
-
-                        box-shadow:
-                            0 5px 18px rgba(0,0,0,0.55);
-
-                        color: #eeeeee;
-
-                        font-size: 28px;
-
-                        cursor: grab;
-
-                        user-select: none;
-                        -webkit-user-select: none;
-
-                        touch-action: none;
-
-                        transition:
-                            transform 0.12s ease,
-                            box-shadow 0.12s ease;
-                    }
-
-
-                    #canon-keeper-floating-widget:active {
-
-                        cursor: grabbing;
-
-                    }
-
-
-                    #canon-keeper-floating-widget.canon-dragging {
-
-                        cursor: grabbing;
-
-                        transform: scale(1.08);
-
-                        box-shadow:
-                            0 8px 25px rgba(0,0,0,0.7);
-                    }
-
-                </style>
-            `);
-        }
-
-
-        // -----------------------------------------------------
-        // Создаём виджет
-        // -----------------------------------------------------
 
         const floatingWidget = $(`
             <div
                 id="canon-keeper-floating-widget"
                 title="Canon Keeper">
-
                 📖
-
             </div>
         `);
 
@@ -940,7 +814,7 @@ jQuery(function () {
 
 
         // -----------------------------------------------------
-        // Восстанавливаем положение
+        // Восстановление положения
         // -----------------------------------------------------
 
         try {
@@ -960,296 +834,11 @@ jQuery(function () {
             ) {
 
                 floatingWidget.css({
-                    left: savedPosition.left + 'px',
-                    top: savedPosition.top + 'px',
-                    right: 'auto',
-                    bottom: 'auto'
-                });
 
-            }
+                    left:
+                        savedPosition.left + 'px',
 
-        } catch (error) {
+                    top:
+                        savedPosition.top + 'px',
 
-            console.log(
-                '[Canon Keeper] Не удалось восстановить положение виджета'
-            );
-
-        }
-
-
-        // -----------------------------------------------------
-        // Перемещение / тап
-        // -----------------------------------------------------
-
-        let pointerStartX = 0;
-        let pointerStartY = 0;
-
-        let widgetStartLeft = 0;
-        let widgetStartTop = 0;
-
-        let isDragging = false;
-
-        let longPressTimer = null;
-
-        let pointerDownTime = 0;
-
-
-        floatingWidget.on(
-            'pointerdown',
-            function (event) {
-
-                event.preventDefault();
-
-
-                const rect =
-                    this.getBoundingClientRect();
-
-
-                pointerStartX =
-                    event.clientX;
-
-                pointerStartY =
-                    event.clientY;
-
-
-                widgetStartLeft =
-                    rect.left;
-
-                widgetStartTop =
-                    rect.top;
-
-
-                pointerDownTime =
-                    Date.now();
-
-
-                isDragging = false;
-
-
-                /*
-                 * Захватываем pointer,
-                 * чтобы движение не потерялось.
-                 */
-                try {
-
-                    this.setPointerCapture(
-                        event.pointerId
-                    );
-
-                } catch (e) {}
-
-
-                /*
-                 * Если пользователь держит палец,
-                 * включаем режим перемещения.
-                 */
-                longPressTimer =
-                    setTimeout(function () {
-
-                        isDragging = true;
-
-                        floatingWidget.addClass(
-                            'canon-dragging'
-                        );
-
-                    }, 400);
-
-            }
-        );
-
-
-        floatingWidget.on(
-            'pointermove',
-            function (event) {
-
-                if (
-                    pointerStartX === 0 &&
-                    pointerStartY === 0
-                ) {
-                    return;
-                }
-
-
-                const deltaX =
-                    event.clientX -
-                    pointerStartX;
-
-
-                const deltaY =
-                    event.clientY -
-                    pointerStartY;
-
-
-                /*
-                 * Если палец заметно сдвинулся,
-                 * считаем это перемещением,
-                 * даже если 400 мс ещё не прошли.
-                 */
-                if (
-                    Math.abs(deltaX) > 8 ||
-                    Math.abs(deltaY) > 8
-                ) {
-
-                    isDragging = true;
-
-                    clearTimeout(
-                        longPressTimer
-                    );
-
-                    floatingWidget.addClass(
-                        'canon-dragging'
-                    );
-                }
-
-
-                if (!isDragging) {
-                    return;
-                }
-
-
-                const widgetWidth =
-                    floatingWidget.outerWidth();
-
-
-                const widgetHeight =
-                    floatingWidget.outerHeight();
-
-
-                let newLeft =
-                    widgetStartLeft +
-                    deltaX;
-
-
-                let newTop =
-                    widgetStartTop +
-                    deltaY;
-
-
-                /*
-                 * Не даём виджету уйти
-                 * за края экрана.
-                 */
-                const maxLeft =
-                    window.innerWidth -
-                    widgetWidth;
-
-
-                const maxTop =
-                    window.innerHeight -
-                    widgetHeight;
-
-
-                newLeft =
-                    Math.max(
-                        0,
-                        Math.min(
-                            newLeft,
-                            maxLeft
-                        )
-                    );
-
-
-                newTop =
-                    Math.max(
-                        0,
-                        Math.min(
-                            newTop,
-                            maxTop
-                        )
-                    );
-
-
-                floatingWidget.css({
-
-                    left: newLeft + 'px',
-                    top: newTop + 'px',
-
-                    right: 'auto',
-                    bottom: 'auto'
-
-                });
-
-            }
-        );
-
-
-        floatingWidget.on(
-            'pointerup pointercancel',
-            function (event) {
-
-                clearTimeout(
-                    longPressTimer
-                );
-
-
-                const wasDragging =
-                    isDragging;
-
-
-                const pressDuration =
-                    Date.now() -
-                    pointerDownTime;
-
-
-                /*
-                 * Если перемещали — сохраняем позицию.
-                 */
-                if (wasDragging) {
-
-                    const rect =
-                        this.getBoundingClientRect();
-
-
-                    try {
-
-                        localStorage.setItem(
-                            'canonKeeperWidgetPosition',
-                            JSON.stringify({
-                                left: rect.left,
-                                top: rect.top
-                            })
-                        );
-
-                    } catch (error) {
-
-                        console.log(
-                            '[Canon Keeper] Не удалось сохранить положение виджета'
-                        );
-
-                    }
-
-
-                    floatingWidget.removeClass(
-                        'canon-dragging'
-                    );
-
-                }
-
-
-                /*
-                 * Если это был обычный короткий тап,
-                 * открываем Canon Keeper.
-                 */
-                if (
-                    !wasDragging &&
-                    pressDuration < 400
-                ) {
-
-                    openCanonKeeper();
-
-                }
-
-
-                pointerStartX = 0;
-                pointerStartY = 0;
-
-                isDragging = false;
-
-            }
-        );
-
-
-        console.log(
-            '[Canon Keeper] плавающий виджет создан'
-        );
-            }
+            
