@@ -2321,3 +2321,132 @@ if ($('#canon-keeper-floating-widget').length === 0) {
 
 
 })();
+// =========================================================
+// CANON KEEPER — ТЕСТ ЧТЕНИЯ ТЕКУЩЕГО ЧАТА
+// =========================================================
+
+if ($('#canon-keeper-chat-test').length === 0) {
+
+    const testButton = $(`
+        <button
+            id="canon-keeper-chat-test"
+            style="
+                position: fixed;
+                left: 18px;
+                bottom: 90px;
+                z-index: 999998;
+
+                padding: 12px 16px;
+
+                border-radius: 12px;
+                border: 1px solid #555;
+
+                background: #242424;
+                color: #eeeeee;
+
+                font-size: 15px;
+                font-weight: 600;
+
+                box-shadow: 0 4px 15px rgba(0,0,0,0.45);
+
+                cursor: pointer;
+            "
+        >
+            📖 Проверить чат
+        </button>
+    `);
+
+    $('body').append(testButton);
+
+
+    testButton.on('click', function () {
+
+        try {
+
+            // Получаем контекст SillyTavern
+            const context = SillyTavern.getContext();
+
+            if (!context) {
+                alert('Canon Keeper: не удалось получить контекст SillyTavern.');
+                return;
+            }
+
+
+            // Получаем текущий чат
+            const currentChat = context.chat;
+
+
+            if (!Array.isArray(currentChat)) {
+
+                alert(
+                    'Canon Keeper:\n\n' +
+                    'Контекст получен, но текущий чат не найден.'
+                );
+
+                return;
+            }
+
+
+            // Берём последние 3 сообщения
+            const lastMessages =
+                currentChat.slice(-3);
+
+
+            if (lastMessages.length === 0) {
+
+                alert(
+                    'Canon Keeper:\n\n' +
+                    'Чат найден, но сообщений пока нет.'
+                );
+
+                return;
+            }
+
+
+            let result =
+                'CANON KEEPER — ТЕСТ\n\n' +
+                'Чат найден успешно.\n' +
+                'Всего сообщений: ' +
+                currentChat.length +
+                '\n\n';
+
+
+            lastMessages.forEach(
+                function (message, index) {
+
+                    const name =
+                        message.name ||
+                        (message.is_user ? 'Вы' : 'Персонаж');
+
+                    const text =
+                        message.mes ||
+                        message.message ||
+                        '';
+
+                    result +=
+                        '--- Сообщение ' +
+                        (index + 1) +
+                        ' ---\n' +
+                        name +
+                        ':\n' +
+                        text +
+                        '\n\n';
+                }
+            );
+
+
+            alert(result);
+
+
+        } catch (error) {
+
+            alert(
+                'Canon Keeper: ошибка при чтении чата.\n\n' +
+                error.message
+            );
+
+        }
+
+    });
+
+}
