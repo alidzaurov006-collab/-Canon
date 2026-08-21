@@ -2244,3 +2244,80 @@ if ($('#canon-keeper-floating-widget').length === 0) {
 
 
 })();
+// =========================================================
+// CANON KEEPER — ПЕРВЫЙ ТЕСТ ЯДРА
+// Читаем текущий чат SillyTavern, ничего не изменяя
+// =========================================================
+
+(function () {
+
+    console.log('[Canon Keeper] Test core started');
+
+    function getChatMessages() {
+
+        const messages = document.querySelectorAll(
+            '#chat .mes'
+        );
+
+        return Array.from(messages).map(function (message) {
+
+            const textElement =
+                message.querySelector('.mes_text');
+
+            const nameElement =
+                message.querySelector('.ch_name');
+
+            return {
+
+                name:
+                    nameElement
+                        ? nameElement.innerText.trim()
+                        : 'Unknown',
+
+                text:
+                    textElement
+                        ? textElement.innerText.trim()
+                        : ''
+
+            };
+
+        }).filter(function (message) {
+
+            return message.text.length > 0;
+
+        });
+
+    }
+
+
+    // Делаем функцию доступной для дальнейшего ядра
+    window.CanonKeeper = window.CanonKeeper || {};
+
+    window.CanonKeeper.getCurrentChat =
+        getChatMessages;
+
+
+    // Тест через 2 секунды после загрузки
+    setTimeout(function () {
+
+        const messages =
+            getChatMessages();
+
+        console.log(
+            '[Canon Keeper] Найдено сообщений:',
+            messages.length
+        );
+
+        if (messages.length > 0) {
+
+            console.log(
+                '[Canon Keeper] Последнее сообщение:',
+                messages[messages.length - 1]
+            );
+
+        }
+
+    }, 2000);
+
+
+})();
