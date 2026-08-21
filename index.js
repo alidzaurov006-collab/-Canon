@@ -1,29 +1,848 @@
-import { eventSource, event_types, setExtensionPrompt, extension_prompt_types, extension_prompt_roles, getCurrentChatId, getContext } from '../../../script.js';
+jQuery(function () {
 
-const PREFIX='canon_keeper_state_v1:'; const PROMPT='canon_keeper_context';
-const DEFAULT={version:1,universe:'',canonMode:'soft',internetMode:'ask',sources:[],canonFacts:[],timeline:[],violations:[],changes:[],currentScene:{location:'',participants:[],summary:''},lastContext:''};
-let state=JSON.parse(JSON.stringify(DEFAULT)), chatId='';
-const key=()=>PREFIX+encodeURIComponent(String(chatId||'default'));
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-function load(){chatId=String(getCurrentChatId?.()||'default');try{state={...JSON.parse(JSON.stringify(DEFAULT)),...JSON.parse(localStorage.getItem(key())||'{}')}}catch{state=JSON.parse(JSON.stringify(DEFAULT))} render();}
-function save(){try{localStorage.setItem(key(),JSON.stringify(state))}catch(e){console.warn('[Canon Keeper] save failed',e)} render();}
-function addLauncher(){if(document.getElementById('canon_keeper_launcher'))return;const b=document.createElement('button');b.id='canon_keeper_launcher';b.className='canon-keeper-launcher';b.innerHTML='🛡️ <b>Canon</b>';b.onclick=openPanel;document.body.appendChild(b)}
-function build(){if(document.getElementById('canon_keeper_panel'))return;const p=document.createElement('div');p.id='canon_keeper_panel';p.className='canon-keeper-panel ck-hidden';p.innerHTML=`<div class="ck-shell"><header class="ck-header"><div class="ck-brand">🛡️<div><b>CANON KEEPER</b><small>Хранитель канона</small></div></div><button id="ck_close">×</button></header><div class="ck-worldbar"><label>ВСЕЛЕННАЯ<input id="ck_universe" placeholder="Например: The Witcher"></label><label>РЕЖИМ<select id="ck_mode"><option value="soft">🟢 Мягкий</option><option value="strict">🟡 Строгий</option><option value="very_strict">🔴 Очень строгий</option></select></label><label>ИНТЕРНЕТ<select id="ck_internet"><option value="auto">🌐 Автоматически</option><option value="ask">🔔 Спрашивать</option><option value="local">🚫 Только локальный</option></select></label></div><nav class="ck-tabs">${[['overview','🏠 Обзор'],['characters','👥 Персонажи'],['world','🌍 Мир'],['timeline','⏳ Временная линия'],['knowledge','🧠 Знания'],['violations','⚠️ Нарушения'],['canon','📚 Канон'],['changes','🔀 Изменения'],['context','🔎 Контекст модели'],['settings','⚙️ Настройки']].map(([a,t])=>`<button data-tab="${a}">${t}</button>`).join('')}</nav><main id="ck_content"></main></div>`;document.body.appendChild(p);p.querySelector('#ck_close').onclick=closePanel;p.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{p.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderTab(b.dataset.tab)});p.querySelector('#ck_universe').onchange=e=>{state.universe=e.target.value.trim();save()};p.querySelector('#ck_mode').onchange=e=>{state.canonMode=e.target.value;save()};p.querySelector('#ck_internet').onchange=e=>{state.internetMode=e.target.value;save()};p.querySelector('[data-tab]').classList.add('active')}
-function openPanel(){load();build();document.getElementById('canon_keeper_panel').classList.remove('ck-hidden');render()};function closePanel(){document.getElementById('canon_keeper_panel')?.classList.add('ck-hidden')}
-function status(){return state.violations.some(v=>v.severity==='critical')?['🔴','Есть критические противоречия']:state.violations.length?['🟡',`Есть предупреждения: ${state.violations.length}`]:['🟢','Канон стабилен']}
-function card(t,b){return `<section class="ck-card"><h3>${t}</h3>${b}</section>`}
-function render(){if(!document.getElementById('canon_keeper_panel'))return;document.getElementById('ck_universe').value=state.universe;document.getElementById('ck_mode').value=state.canonMode;document.getElementById('ck_internet').value=state.internetMode;renderTab(document.querySelector('.ck-tabs .active')?.dataset.tab||'overview')}
-function renderTab(tab){const el=document.getElementById('ck_content');if(!el)return;const [ico,label]=status();
-if(tab==='overview'){el.innerHTML=card(`${ico} ${label}`,`<div class="ck-big">${esc(state.universe||'Вселенная ещё не выбрана')}</div><p class="ck-muted">Состояние сохраняется отдельно для каждого чата.</p>`)+card('🎬 Текущая сцена',`<div class="ck-grid"><div><b>📍 Локация</b><br>${esc(state.currentScene.location||'Не указана')}</div><div><b>👥 Участники</b><br>${state.currentScene.participants.map(esc).join(', ')||'Не указаны'}</div></div><p>${esc(state.currentScene.summary||'Сводка сцены пока не создана.')}</p>`)+`<div class="ck-statgrid"><div><b>${state.canonFacts.length}</b><span>📚 Фактов</span></div><div><b>${state.timeline.length}</b><span>📜 Событий</span></div><div><b>${state.violations.length}</b><span>⚠️ Нарушений</span></div><div><b>${state.changes.length}</b><span>🔀 Изменений</span></div></div>`+card('🧭 Быстрые действия',`<div class="ck-actions"><button data-act="scene">Обновить сцену</button><button data-act="event">Добавить событие</button><button data-act="fact">Добавить факт</button><button data-act="violation">Добавить предупреждение</button></div>`);bindActions();return}
-if(tab==='characters'||tab==='world'||tab==='knowledge') {const title={characters:'👥 Персонажи',world:'🌍 Мир',knowledge:'🧠 Знания'}[tab];el.innerHTML=card(title,`<div class="ck-empty">Этот раздел уже заложен в интерфейс MVP. Автоматическое заполнение из канона подключим следующим этапом.</div>`);return}
-if(tab==='timeline'){el.innerHTML=card('⏳ Временная линия',state.timeline.length?state.timeline.slice().reverse().map(x=>`<div class="ck-timeline"><span>${esc(x.date||'—')}</span><b>${esc(x.title)}</b><p>${esc(x.description)}</p></div>`).join(''):'<div class="ck-empty">Событий пока нет.</div>');return}
-if(tab==='violations'){el.innerHTML=card('⚠️ Нарушения',state.violations.length?state.violations.slice().reverse().map(v=>`<div class="ck-violation ${esc(v.severity||'warning')}"><b>${esc(v.title)}</b><p>${esc(v.description)}</p></div>`).join(''):'<div class="ck-empty">Нарушений не обнаружено.</div>');return}
-if(tab==='canon'){el.innerHTML=card('📚 Канонические факты',`<div class="ck-actions"><button data-act="fact">+ Добавить факт</button></div>${state.canonFacts.length?state.canonFacts.slice().reverse().map(f=>`<div class="ck-fact"><b>${esc(f.subject)}</b><p>${esc(f.text)}</p><small>Источник: ${esc(f.source||'не указан')} · Уверенность: ${esc(f.confidence||'manual')}</small></div>`).join(''):'<div class="ck-empty">Фактов пока нет.</div>');bindActions();return}
-if(tab==='changes'){el.innerHTML=card('🔀 Изменения нашей ролевой',state.changes.length?state.changes.slice().reverse().map(c=>`<div class="ck-change"><b>${esc(c.title)}</b><p>${esc(c.description)}</p></div>`).join(''):'<div class="ck-empty">Подтверждённых изменений пока нет.</div>');return}
-if(tab==='context'){el.innerHTML=card('🔎 Что передано модели',`<pre class="ck-context">${esc(state.lastContext||'Контекст ещё не формировался. После следующей генерации здесь появится точный текст.')}</pre>`);return}
-if(tab==='settings'){el.innerHTML=card('⚙️ Настройки',`<p class="ck-muted">Это первая рабочая MVP-версия. Здесь позже появятся источники, веб-поиск, отдельная модель-судья и расширенные параметры.</p><button data-act="reset">Сбросить состояние этого чата</button><p class="ck-note">В этой версии состояние хранится отдельно для каждого чата в локальном хранилище браузера.</p>`);bindActions()}}
-function bindActions(){document.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{const a=b.dataset.act;if(a==='reset'){if(confirm('Сбросить состояние этого чата?')){localStorage.removeItem(key());load()}}else if(a==='fact'){const subject=prompt('К чему относится факт?');if(!subject)return;const text=prompt('Канонический факт:');if(!text)return;const source=prompt('Источник (необязательно):')||'';state.canonFacts.push({subject,text,source,confidence:'manual'});save()}else if(a==='event'){const title=prompt('Название события:');if(!title)return;state.timeline.push({title,description:prompt('Что произошло?')||'',date:prompt('Дата/момент (необязательно):')||''});save()}else if(a==='violation'){const title=prompt('Заголовок предупреждения:');if(!title)return;state.violations.push({title,description:prompt('Описание конфликта:')||'',severity:'warning'});save()}else if(a==='scene'){state.currentScene={location:prompt('Локация:',state.currentScene.location)||'',participants:(prompt('Участники через запятую:',state.currentScene.participants.join(', '))||'').split(',').map(x=>x.trim()).filter(Boolean),summary:prompt('Сводка:',state.currentScene.summary)||''};save()}})}
-function buildContext(){const c=getContext()?.chat?.slice(-6)?.map(m=>`${m?.name||'message'}: ${m?.mes||''}`).join('\n')||'';return `CANON KEEPER — CANONICAL CONTEXT\nUniverse: ${state.universe||'unknown'}\nMode: ${state.canonMode}\nCurrent scene: ${state.currentScene.location||'unknown'}\nParticipants: ${state.currentScene.participants.join(', ')||'unknown'}\nSummary: ${state.currentScene.summary||'unknown'}\n\nRelevant canonical facts:\n${state.canonFacts.slice(-20).map(f=>`- ${f.subject}: ${f.text} [${f.source||'manual'}]`).join('\n')||'- none'}\n\nRecent timeline:\n${state.timeline.slice(-12).map(e=>`- ${e.date||''} ${e.title}: ${e.description}`).join('\n')||'- none'}\n\nConfirmed roleplay deviations:\n${state.changes.slice(-10).map(c=>`- ${c.title}: ${c.description}`).join('\n')||'- none'}\n\nRules:\n- Preserve established canon unless a confirmed roleplay deviation overrides it.\n- Do not invent knowledge for characters.\n- Keep chronology and causality consistent.\n- The user's original character is not restricted by source canon.\n\nRecent chat for relevance:\n${c||'- none'}`}
-function inject(){load();state.lastContext=buildContext();save();setExtensionPrompt(PROMPT, state.lastContext, extension_prompt_types.IN_PROMPT, 2, false, extension_prompt_roles.SYSTEM)}
-export async function canonKeeperGenerateInterceptor(chat){return chat}
-export async function init(){addLauncher();build();load();eventSource.on(event_types.CHAT_CHANGED,load);eventSource.on(event_types.CHAT_CREATED,load);eventSource.on(event_types.GENERATION_STARTED,inject);eventSource.on(event_types.MESSAGE_SENT,load);eventSource.on(event_types.MESSAGE_RECEIVED,load);eventSource.on(event_types.MESSAGE_EDITED,load);eventSource.on(event_types.MESSAGE_DELETED,load);console.log('[Canon Keeper] v0.1.0 loaded')}
+    // =========================================================
+    // CANON KEEPER
+    // =========================================================
+
+    const BUTTON_ID = 'canon-keeper-button';
+    const OVERLAY_ID = 'canon-keeper-overlay';
+    const STORAGE_KEY = 'canonKeeperRules';
+
+
+    // =========================================================
+    // КНОПКА В МЕНЮ EXTENSIONS
+    // =========================================================
+
+    const buttonHtml = `
+        <div id="${BUTTON_ID}"
+             class="list-group-item flex-container flexGap5">
+            <div class="fa-solid fa-book extensionsMenuExtensionButton"></div>
+            Canon Keeper
+        </div>
+    `;
+
+    if ($('#' + BUTTON_ID).length === 0) {
+        $('#extensionsMenu').prepend(buttonHtml);
+    }
+
+
+    // =========================================================
+    // CSS
+    // =========================================================
+
+    if ($('#canon-keeper-style').length === 0) {
+
+        $('head').append(`
+            <style id="canon-keeper-style">
+
+                /* =================================================
+                   Затемнение
+                   ================================================= */
+
+                #${OVERLAY_ID} {
+
+                    position: fixed;
+
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+
+                    z-index: 99990;
+
+                    background: rgba(0, 0, 0, 0.55);
+
+                    display: flex;
+
+                    justify-content: center;
+                    align-items: flex-start;
+
+                    box-sizing: border-box;
+
+                    /*
+                     * Верхняя панель Tavern остаётся свободной.
+                     */
+                    padding-top: 175px;
+
+                    padding-left: 8px;
+                    padding-right: 8px;
+                    padding-bottom: 12px;
+                }
+
+
+                /* =================================================
+                   ОКНО
+                   ================================================= */
+
+                #canon-keeper-modal {
+
+                    position: relative;
+
+                    width: 100%;
+                    max-width: 760px;
+
+                    /*
+                     * Высота окна ограничена экраном.
+                     */
+                    height: calc(100vh - 187px);
+
+                    max-height: calc(100vh - 187px);
+
+                    box-sizing: border-box;
+
+                    background: #171717;
+
+                    color: #eeeeee;
+
+                    border: 1px solid #303030;
+
+                    border-radius: 22px;
+
+                    box-shadow:
+                        0 15px 55px rgba(0, 0, 0, 0.80);
+
+                    overflow: hidden;
+
+                    display: flex;
+                    flex-direction: column;
+                }
+
+
+                /* =================================================
+                   ШАПКА
+                   ================================================= */
+
+                #canon-keeper-header {
+
+                    flex: 0 0 auto;
+
+                    position: relative;
+
+                    padding:
+                        22px
+                        65px
+                        16px
+                        22px;
+
+                    text-align: center;
+
+                    background: #171717;
+                }
+
+
+                #canon-keeper-header h2 {
+
+                    margin: 0;
+
+                    font-size: 34px;
+
+                    line-height: 1.2;
+
+                    color: #eeeeee;
+                }
+
+
+                #canon-keeper-header .canon-subtitle {
+
+                    margin-top: 10px;
+
+                    font-size: 21px;
+
+                    line-height: 1.3;
+
+                    color: #dddddd;
+                }
+
+
+                #canon-keeper-header hr {
+
+                    margin:
+                        18px
+                        0
+                        0
+                        0;
+
+                    border: 0;
+
+                    border-top:
+                        1px solid #333333;
+                }
+
+
+                /* =================================================
+                   КРЕСТИК
+                   ================================================= */
+
+                #canon-keeper-close {
+
+                    position: absolute;
+
+                    top: 12px;
+                    right: 12px;
+
+                    width: 46px;
+                    height: 46px;
+
+                    padding: 0;
+
+                    border: 0;
+
+                    border-radius: 50%;
+
+                    background: #eeeeee;
+
+                    color: #222222;
+
+                    font-size: 28px;
+
+                    font-weight: bold;
+
+                    line-height: 46px;
+
+                    text-align: center;
+
+                    z-index: 20;
+
+                    cursor: pointer;
+
+                    box-shadow:
+                        0 2px 8px rgba(0,0,0,0.35);
+                }
+
+
+                /* =================================================
+                   ВНУТРЕННЯЯ ПРОКРУТКА
+                   ================================================= */
+
+                #canon-keeper-content {
+
+                    flex: 1 1 auto;
+
+                    min-height: 0;
+
+                    overflow-y: auto;
+
+                    overflow-x: hidden;
+
+                    -webkit-overflow-scrolling: touch;
+
+                    box-sizing: border-box;
+
+                    padding:
+                        0
+                        20px
+                        30px
+                        20px;
+                }
+
+
+                /* =================================================
+                   ЗАГОЛОВОК КАНОНА
+                   ================================================= */
+
+                #canon-keeper-content .canon-section-title {
+
+                    text-align: center;
+
+                    font-size: 30px;
+
+                    font-weight: bold;
+
+                    line-height: 1.25;
+
+                    margin:
+                        8px
+                        0
+                        18px
+                        0;
+                }
+
+
+                /* =================================================
+                   ПОЛЕ
+                   ================================================= */
+
+                #canon-keeper-input {
+
+                    display: block;
+
+                    width: 100%;
+
+                    min-height: 145px;
+
+                    box-sizing: border-box;
+
+                    resize: vertical;
+
+                    padding: 18px;
+
+                    border:
+                        2px solid #444444;
+
+                    border-radius: 14px;
+
+                    background: #0d0d0d;
+
+                    color: #eeeeee;
+
+                    font-size: 19px;
+
+                    line-height: 1.45;
+
+                    outline: none;
+                }
+
+
+                #canon-keeper-input:focus {
+
+                    border-color: #707070;
+                }
+
+
+                #canon-keeper-input::placeholder {
+
+                    color: #777777;
+                }
+
+
+                /* =================================================
+                   ДОБАВИТЬ ПРАВИЛО
+                   ================================================= */
+
+                #canon-keeper-add {
+
+                    display: block;
+
+                    width: 100%;
+
+                    min-height: 60px;
+
+                    margin-top: 15px;
+
+                    padding:
+                        8px
+                        12px;
+
+                    box-sizing: border-box;
+
+                    border:
+                        2px solid #444444;
+
+                    border-radius: 14px;
+
+                    background: #242424;
+
+                    color: #eeeeee;
+
+                    font-size: 21px;
+
+                    font-weight: bold;
+
+                    cursor: pointer;
+                }
+
+
+                #canon-keeper-add:active {
+
+                    transform: scale(0.985);
+                }
+
+
+                /* =================================================
+                   ПРАВИЛО
+                   ================================================= */
+
+                .canon-keeper-rule {
+
+                    width: 100%;
+
+                    margin-top: 18px;
+
+                    padding: 20px;
+
+                    box-sizing: border-box;
+
+                    border:
+                        2px solid #3d3d3d;
+
+                    border-radius: 16px;
+
+                    background: #202020;
+                }
+
+
+                .canon-keeper-rule-text {
+
+                    font-size: 20px;
+
+                    line-height: 1.45;
+
+                    color: #eeeeee;
+
+                    white-space: pre-wrap;
+
+                    word-break: break-word;
+                }
+
+
+                /* =================================================
+                   КНОПКИ ПРАВИЛА
+                   ================================================= */
+
+                .canon-keeper-rule-buttons {
+
+                    display: flex;
+
+                    gap: 12px;
+
+                    margin-top: 16px;
+                }
+
+
+                .canon-keeper-rule-buttons button {
+
+                    flex: 1;
+
+                    min-width: 0;
+
+                    min-height: 54px;
+
+                    padding:
+                        8px
+                        6px;
+
+                    box-sizing: border-box;
+
+                    border:
+                        1px solid #555555;
+
+                    border-radius: 12px;
+
+                    background: #303030;
+
+                    color: #eeeeee;
+
+                    font-size: 18px;
+
+                    cursor: pointer;
+                }
+
+
+                .canon-keeper-rule-buttons button:active {
+
+                    transform: scale(0.98);
+                }
+
+
+                /* =================================================
+                   КОПИРОВАТЬ ВЕСЬ КАНОН
+                   ================================================= */
+
+                #canon-keeper-copy {
+
+                    display: block;
+
+                    width: 100%;
+
+                    min-height: 58px;
+
+                    margin-top: 22px;
+
+                    padding:
+                        8px
+                        12px;
+
+                    box-sizing: border-box;
+
+                    border:
+                        2px solid #444444;
+
+                    border-radius: 14px;
+
+                    background: #242424;
+
+                    color: #eeeeee;
+
+                    font-size: 20px;
+
+                    font-weight: bold;
+
+                    cursor: pointer;
+                }
+
+
+                /* =================================================
+                   ТЕЛЕФОН
+                   ================================================= */
+
+                @media (max-width: 600px) {
+
+                    #${OVERLAY_ID} {
+
+                        padding-top: 175px;
+
+                        padding-left: 6px;
+                        padding-right: 6px;
+                        padding-bottom: 8px;
+                    }
+
+
+                    #canon-keeper-modal {
+
+                        height:
+                            calc(100vh - 183px);
+
+                        max-height:
+                            calc(100vh - 183px);
+
+                        border-radius: 20px;
+                    }
+
+
+                    #canon-keeper-header {
+
+                        padding:
+                            18px
+                            60px
+                            14px
+                            18px;
+                    }
+
+
+                    #canon-keeper-header h2 {
+
+                        font-size: 30px;
+                    }
+
+
+                    #canon-keeper-header .canon-subtitle {
+
+                        font-size: 20px;
+                    }
+
+
+                    #canon-keeper-content {
+
+                        padding:
+                            0
+                            14px
+                            25px
+                            14px;
+                    }
+
+
+                    #canon-keeper-content .canon-section-title {
+
+                        font-size: 27px;
+
+                        margin-top: 7px;
+                    }
+
+
+                    #canon-keeper-input {
+
+                        min-height: 135px;
+
+                        font-size: 19px;
+
+                        padding: 16px;
+                    }
+
+
+                    #canon-keeper-add {
+
+                        min-height: 58px;
+
+                        font-size: 20px;
+                    }
+
+
+                    .canon-keeper-rule {
+
+                        padding: 18px;
+                    }
+
+
+                    .canon-keeper-rule-text {
+
+                        font-size: 19px;
+                    }
+
+
+                    .canon-keeper-rule-buttons {
+
+                        gap: 10px;
+                    }
+
+
+                    .canon-keeper-rule-buttons button {
+
+                        font-size: 17px;
+
+                        min-height: 52px;
+                    }
+
+
+                    #canon-keeper-copy {
+
+                        font-size: 19px;
+                    }
+                }
+
+            </style>
+        `);
+    }
+
+
+    // =========================================================
+    // ОТКРЫТИЕ
+    // =========================================================
+
+    $('#' + BUTTON_ID)
+        .off('click.canonKeeper')
+        .on('click.canonKeeper', function () {
+
+            openCanonKeeper();
+
+        });
+
+
+    // =========================================================
+    // ОТКРЫТИЕ ОКНА
+    // =========================================================
+
+    function openCanonKeeper() {
+
+        /*
+         * Не создаём второе окно поверх первого.
+         */
+        if ($('#' + OVERLAY_ID).length) {
+            return;
+        }
+
+
+        // -----------------------------------------------------
+        // Загружаем правила
+        // -----------------------------------------------------
+
+        let rules = [];
+
+        try {
+
+            const saved =
+                localStorage.getItem(STORAGE_KEY);
+
+            if (saved) {
+
+                const parsed =
+                    JSON.parse(saved);
+
+                if (Array.isArray(parsed)) {
+                    rules = parsed;
+                }
+            }
+
+        } catch (error) {
+
+            console.error(
+                '[Canon Keeper] Ошибка загрузки:',
+                error
+            );
+
+            rules = [];
+        }
+
+
+        // -----------------------------------------------------
+        // Создаём окно
+        // -----------------------------------------------------
+
+        const overlay = $(`
+            <div id="${OVERLAY_ID}">
+
+                <div id="canon-keeper-modal">
+
+                    <button
+                        id="canon-keeper-close"
+                        type="button"
+                        aria-label="Закрыть">
+                        ×
+                    </button>
+
+
+                    <div id="canon-keeper-header">
+
+                        <h2>
+                            🛡️ Canon Keeper
+                        </h2>
+
+                        <div class="canon-subtitle">
+                            Хранитель канона
+                        </div>
+
+                        <hr>
+
+                    </div>
+
+
+                    <div id="canon-keeper-content">
+
+                        <div class="canon-section-title">
+                            📜 Канон
+                        </div>
+
+
+                        <textarea
+                            id="canon-keeper-input"
+                            placeholder="Напиши правило канона..."
+                        ></textarea>
+
+
+                        <button
+                            id="canon-keeper-add"
+                            type="button">
+                            ➕ Добавить правило
+                        </button>
+
+
+                        <div id="canon-keeper-rules"></div>
+
+
+                        <button
+                            id="canon-keeper-copy"
+                            type="button">
+                            📋 Скопировать весь канон
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+        `);
+
+
+        $('body').append(overlay);
+
+
+        // =====================================================
+        // СОХРАНЕНИЕ
+        // =====================================================
+
+        function saveRules() {
+
+            try {
+
+                localStorage.setItem(
+                    STORAGE_KEY,
+                    JSON.stringify(rules)
+                );
+
+            } catch (error) {
+
+                console.error(
+                    '[Canon Keeper] Ошибка сохранения:',
+                    error
+                );
+
+                alert(
+                    'Не удалось сохранить канон.'
+                );
+            }
+        }
+
+
+        // =====================================================
+        // ОТОБРАЖЕНИЕ ПРАВИЛ
+        // =====================================================
+
+        function renderRules() {
+
+            const container =
+                $('#canon-keeper-rules');
+
+            container.empty();
+
+
+            rules.forEach(function (rule, index) {
+
+                const card = $(`
+                    <div class="canon-keeper-rule">
+
+                        <div class="canon-keeper-rule-text"></div>
+
+                        <div class="canon-keeper-rule-buttons">
+
+                            <button
+                                type="button"
+                                class="canon-keeper-edit">
+                                ✏️ Изменить
+                            </button>
+
+                            <button
+                                type="button"
+                                class="canon-keeper-delete">
+                                🗑️ Удалить
+                            </button>
+
+                        </div>
+
+                    </div>
+                `);
+
+
+                card.find('.canon-keeper-rule-text')
+                    .text(rule);
+
+
+                // -------------------------------------------------
+                // ИЗМЕНИТЬ
+                // -------------------------------------------------
+
+                card.find('.canon-keeper-edit')
+                    .on('click', function () {
+
+                        const newRule =
+                            prompt(
+                                'Измени правило канона:',
+                                rule
+                            );
+
+
+                        if (
+                            newRule !== null &&
+                            newRule.trim() !== ''
+                        ) {
+
+                            rules[index] =
+                                newRule.trim();
+
+                            saveRules();
+
+                            renderRules();
+                        }
+
+                    });
+
+
+                // -------------------------------------------------
+                // УДАЛИТЬ
+                // -------------------------------------------------
+
+                card.find('.canon-keeper-delete')
+                    .on('click', function () {
+
+                        if (
+                            confirm(
+                                'Удалить это правило из канона?'
+                            )
+                        ) {
+
+                            rules.splice(
+                                index,
+                                1
+                            );
+
+                            saveRules();
+
+                            renderRu
