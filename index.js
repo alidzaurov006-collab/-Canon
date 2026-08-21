@@ -1088,3 +1088,828 @@ if ($('#canon-keeper-floating-widget').length === 0) {
     );
 
                 }
+// =========================================================
+// CANON STORE
+// Центральное хранилище Canon Keeper
+// =========================================================
+
+(function () {
+
+    const CANON_STORE_KEY = 'canonKeeperStore';
+
+
+    // -----------------------------------------------------
+    // Создание новой структуры канона
+    // -----------------------------------------------------
+
+    function createEmptyCanon() {
+
+        return {
+
+            version: 1,
+
+            world: {
+
+                name: '',
+                source: '',
+                era: '',
+                description: ''
+
+            },
+
+
+            characters: [],
+
+
+            relationships: [],
+
+
+            locations: [],
+
+
+            events: [],
+
+
+            timeline: [],
+
+
+            rules: []
+
+        };
+
+    }
+
+
+    // -----------------------------------------------------
+    // Загрузка канона
+    // -----------------------------------------------------
+
+    function loadCanon() {
+
+        try {
+
+            const saved =
+                localStorage.getItem(
+                    CANON_STORE_KEY
+                );
+
+
+            if (!saved) {
+
+                const newCanon =
+                    createEmptyCanon();
+
+
+                migrateOldRules(newCanon);
+
+
+                saveCanon(newCanon);
+
+
+                return newCanon;
+
+            }
+
+
+            const parsed =
+                JSON.parse(saved);
+
+
+            if (
+                !parsed ||
+                typeof parsed !== 'object'
+            ) {
+
+                throw new Error(
+                    'Некорректная структура Canon Store'
+                );
+
+            }
+
+
+            const canon =
+                createEmptyCanon();
+
+
+            /*
+             * Объединяем сохранённые данные
+             * с новой структурой.
+             */
+
+            canon.version =
+                parsed.version || 1;
+
+
+            canon.world =
+                Object.assign(
+                    canon.world,
+                    parsed.world || {}
+                );
+
+
+            canon.characters =
+                Array.isArray(
+                    parsed.characters
+                )
+                    ? parsed.characters
+                    : [];
+
+
+            canon.relationships =
+                Array.isArray(
+                    parsed.relationships
+                )
+                    ? parsed.relationships
+                    : [];
+
+
+            canon.locations =
+                Array.isArray(
+                    parsed.locations
+                )
+                    ? parsed.locations
+                    : [];
+
+
+            canon.events =
+                Array.isArray(
+                    parsed.events
+                )
+                    ? parsed.events
+                    : [];
+
+
+            canon.timeline =
+                Array.isArray(
+                    parsed.timeline
+                )
+                    ? parsed.timeline
+                    : [];
+
+
+            canon.rules =
+                Array.isArray(
+                    parsed.rules
+                )
+                    ? parsed.rules
+                    : [];
+
+
+            return canon;
+
+        } catch (error) {
+
+            console.error(
+                '[Canon Store] Ошибка загрузки:',
+                error
+            );
+
+
+            return createEmptyCanon();
+
+        }
+
+    }
+
+
+    // -----------------------------------------------------
+    // Сохранение канона
+    // -----------------------------------------------------
+
+    function saveCanon(canon) {
+
+        try {
+
+            localStorage.setItem(
+                CANON_STORE_KEY,
+                JSON.stringify(canon)
+            );
+
+
+            return true;
+
+        } catch (error) {
+
+            console.error(
+                '[Canon Store] Ошибка сохранения:',
+                error
+            );
+
+
+            return false;
+
+        }
+
+    }
+
+
+    // -----------------------------------------------------
+    // Перенос старых правил
+    // -----------------------------------------------------
+
+    function migrateOldRules(canon) {
+
+        try {
+
+            const oldRules =
+                localStorage.getItem(
+                    'canonKeeperRules'
+                );
+
+
+            if (!oldRules) {
+                return;
+            }
+
+
+            const parsed =
+                JSON.parse(oldRules);
+
+
+            if (
+                !Array.isArray(parsed) ||
+                parsed.length === 0
+            ) {
+                return;
+            }
+
+
+            canon.rules =
+                parsed.map(function (rule) {
+
+                    return {
+
+                        id:
+                            createId('rule'),
+
+                        text:
+                            String(rule),
+
+                        source:
+                            'manual',
+
+                        createdAt:
+                            Date.now(),
+
+                        updatedAt:
+                            Date.now()
+
+                    };
+
+                });
+
+
+            console.log(
+                '[Canon Store] Старые правила перенесены:',
+                canon.rules.length
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                '[Canon Store] Ошибка переноса старых правил:',
+                error
+            );
+
+        }
+
+    }
+
+
+    // -----------------------------------------------------
+    // Генератор ID
+    // -----------------------------------------------------
+
+    function createId(prefix) {
+
+        return (
+            prefix +
+            '_' +
+            Date.now() +
+            '_' +
+            Math.random()
+                .toString(36)
+                .substring(2, 8)
+        );
+
+    }
+
+
+    // -----------------------------------------------------
+    // Получить весь канон
+    // -----------------------------------------------------
+
+    function getCanon() {
+
+        return loadCanon();
+
+    }
+
+
+    // -----------------------------------------------------
+    // Обновить весь канон
+    // -----------------------------------------------------
+
+    function setCanon(canon) {
+
+        return saveCanon(canon);
+
+    }
+
+
+    // -----------------------------------------------------
+    // Добавить правило
+    // -----------------------------------------------------
+
+    function addRule(text, options = {}) {
+
+        if (
+            !text ||
+            !String(text).trim()
+        ) {
+
+            return null;
+
+        }
+
+
+        const canon =
+            loadCanon();
+
+
+        const now =
+            Date.now();
+
+
+        const rule = {
+
+            id:
+                createId('rule'),
+
+            text:
+                String(text).trim(),
+
+            source:
+                options.source || 'manual',
+
+            createdAt:
+                now,
+
+            updatedAt:
+                now
+
+        };
+
+
+        canon.rules.push(rule);
+
+
+        saveCanon(canon);
+
+
+        return rule;
+
+    }
+
+
+    // -----------------------------------------------------
+    // Удалить правило
+    // -----------------------------------------------------
+
+    function removeRule(id) {
+
+        const canon =
+            loadCanon();
+
+
+        const oldLength =
+            canon.rules.length;
+
+
+        canon.rules =
+            canon.rules.filter(
+                function (rule) {
+
+                    return rule.id !== id;
+
+                }
+            );
+
+
+        if (
+            canon.rules.length === oldLength
+        ) {
+
+            return false;
+
+        }
+
+
+        saveCanon(canon);
+
+
+        return true;
+
+    }
+
+
+    // -----------------------------------------------------
+    // Изменить правило
+    // -----------------------------------------------------
+
+    function updateRule(id, text) {
+
+        if (
+            !text ||
+            !String(text).trim()
+        ) {
+
+            return false;
+
+        }
+
+
+        const canon =
+            loadCanon();
+
+
+        const rule =
+            canon.rules.find(
+                function (item) {
+
+                    return item.id === id;
+
+                }
+            );
+
+
+        if (!rule) {
+
+            return false;
+
+        }
+
+
+        rule.text =
+            String(text).trim();
+
+
+        rule.updatedAt =
+            Date.now();
+
+
+        saveCanon(canon);
+
+
+        return true;
+
+    }
+
+
+    // -----------------------------------------------------
+    // Добавить персонажа
+    // -----------------------------------------------------
+
+    function addCharacter(data = {}) {
+
+        const canon =
+            loadCanon();
+
+
+        const character = {
+
+            id:
+                data.id ||
+                createId('character'),
+
+            name:
+                data.name || '',
+
+            personality:
+                Array.isArray(
+                    data.personality
+                )
+                    ? data.personality
+                    : [],
+
+            biography:
+                data.biography || '',
+
+            knowledge:
+                Array.isArray(
+                    data.knowledge
+                )
+                    ? data.knowledge
+                    : [],
+
+            currentState:
+                data.currentState || '',
+
+            notes:
+                data.notes || '',
+
+            createdAt:
+                Date.now(),
+
+            updatedAt:
+                Date.now()
+
+        };
+
+
+        canon.characters.push(
+            character
+        );
+
+
+        saveCanon(canon);
+
+
+        return character;
+
+    }
+
+
+    // -----------------------------------------------------
+    // Добавить отношение
+    // -----------------------------------------------------
+
+    function addRelationship(data = {}) {
+
+        const canon =
+            loadCanon();
+
+
+        const relationship = {
+
+            id:
+                data.id ||
+                createId('relationship'),
+
+            from:
+                data.from || '',
+
+            to:
+                data.to || '',
+
+            type:
+                data.type || '',
+
+            attitude:
+                data.attitude || '',
+
+            notes:
+                data.notes || '',
+
+            createdAt:
+                Date.now(),
+
+            updatedAt:
+                Date.now()
+
+        };
+
+
+        canon.relationships.push(
+            relationship
+        );
+
+
+        saveCanon(canon);
+
+
+        return relationship;
+
+    }
+
+
+    // -----------------------------------------------------
+    // Добавить локацию
+    // -----------------------------------------------------
+
+    function addLocation(data = {}) {
+
+        const canon =
+            loadCanon();
+
+
+        const location = {
+
+            id:
+                data.id ||
+                createId('location'),
+
+            name:
+                data.name || '',
+
+            description:
+                data.description || '',
+
+            notes:
+                data.notes || '',
+
+            createdAt:
+                Date.now(),
+
+            updatedAt:
+                Date.now()
+
+        };
+
+
+        canon.locations.push(
+            location
+        );
+
+
+        saveCanon(canon);
+
+
+        return location;
+
+    }
+
+
+    // -----------------------------------------------------
+    // Добавить событие
+    // -----------------------------------------------------
+
+    function addEvent(data = {}) {
+
+        const canon =
+            loadCanon();
+
+
+        const event = {
+
+            id:
+                data.id ||
+                createId('event'),
+
+            title:
+                data.title || '',
+
+            description:
+                data.description || '',
+
+            status:
+                data.status || 'future',
+
+            order:
+                typeof data.order === 'number'
+                    ? data.order
+                    : canon.events.length,
+
+            createdAt:
+                Date.now(),
+
+            updatedAt:
+                Date.now()
+
+        };
+
+
+        canon.events.push(
+            event
+        );
+
+
+        saveCanon(canon);
+
+
+        return event;
+
+    }
+
+
+    // -----------------------------------------------------
+    // Добавить событие в хронологию
+    // -----------------------------------------------------
+
+    function addTimelineEntry(data = {}) {
+
+        const canon =
+            loadCanon();
+
+
+        const entry = {
+
+            id:
+                data.id ||
+                createId('timeline'),
+
+            title:
+                data.title || '',
+
+            description:
+                data.description || '',
+
+            order:
+                typeof data.order === 'number'
+                    ? data.order
+                    : canon.timeline.length,
+
+            createdAt:
+                Date.now(),
+
+            updatedAt:
+                Date.now()
+
+        };
+
+
+        canon.timeline.push(
+            entry
+        );
+
+
+        saveCanon(canon);
+
+
+        return entry;
+
+    }
+
+
+    // -----------------------------------------------------
+    // Очистить всё хранилище
+    // -----------------------------------------------------
+
+    function resetCanon() {
+
+        const emptyCanon =
+            createEmptyCanon();
+
+
+        saveCanon(emptyCanon);
+
+
+        return emptyCanon;
+
+    }
+
+
+    // -----------------------------------------------------
+    // Экспортируем Canon Store
+    // -----------------------------------------------------
+
+    window.CanonStore = {
+
+        getCanon:
+            getCanon,
+
+        setCanon:
+            setCanon,
+
+        saveCanon:
+            saveCanon,
+
+        createId:
+            createId,
+
+        addRule:
+            addRule,
+
+        removeRule:
+            removeRule,
+
+        updateRule:
+            updateRule,
+
+        addCharacter:
+            addCharacter,
+
+        addRelationship:
+            addRelationship,
+
+        addLocation:
+            addLocation,
+
+        addEvent:
+            addEvent,
+
+        addTimelineEntry:
+            addTimelineEntry,
+
+        resetCanon:
+            resetCanon
+
+    };
+
+
+    // -----------------------------------------------------
+    // Инициализация
+    // -----------------------------------------------------
+
+    const initialCanon =
+        loadCanon();
+
+
+    console.log(
+        '[Canon Store] готов',
+        initialCanon
+    );
+
+
+})();
