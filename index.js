@@ -1913,3 +1913,334 @@ if ($('#canon-keeper-floating-widget').length === 0) {
 
 
 })();
+// =========================================================
+// CANON KEEPER — CHARACTER STORE
+// Первый модуль памяти персонажей
+// =========================================================
+
+(function () {
+
+    'use strict';
+
+    const CHARACTER_STORE_KEY =
+        'canonKeeperCharacters';
+
+
+    // -----------------------------------------------------
+    // Загрузка персонажей
+    // -----------------------------------------------------
+
+    function loadCharacters() {
+
+        try {
+
+            const saved =
+                localStorage.getItem(
+                    CHARACTER_STORE_KEY
+                );
+
+            if (!saved) {
+                return [];
+            }
+
+            const characters =
+                JSON.parse(saved);
+
+            if (!Array.isArray(characters)) {
+                return [];
+            }
+
+            return characters;
+
+        } catch (error) {
+
+            console.error(
+                '[Canon Store] Ошибка загрузки персонажей:',
+                error
+            );
+
+            return [];
+
+        }
+
+    }
+
+
+    // -----------------------------------------------------
+    // Сохранение персонажей
+    // -----------------------------------------------------
+
+    function saveCharacters(characters) {
+
+        try {
+
+            localStorage.setItem(
+                CHARACTER_STORE_KEY,
+                JSON.stringify(characters)
+            );
+
+            return true;
+
+        } catch (error) {
+
+            console.error(
+                '[Canon Store] Ошибка сохранения персонажей:',
+                error
+            );
+
+            return false;
+
+        }
+
+    }
+
+
+    // -----------------------------------------------------
+    // Создание ID
+    // -----------------------------------------------------
+
+    function createCharacterId() {
+
+        return (
+            'character_' +
+            Date.now() +
+            '_' +
+            Math.random()
+                .toString(36)
+                .substring(2, 8)
+        );
+
+    }
+
+
+    // -----------------------------------------------------
+    // Добавление персонажа
+    // -----------------------------------------------------
+
+    function addCharacter(data) {
+
+        if (!data || !data.name) {
+
+            console.warn(
+                '[Canon Store] Нельзя добавить персонажа без имени'
+            );
+
+            return null;
+
+        }
+
+
+        const characters =
+            loadCharacters();
+
+
+        const character = {
+
+            id:
+                data.id ||
+                createCharacterId(),
+
+            name:
+                String(data.name).trim(),
+
+            aliases:
+                Array.isArray(data.aliases)
+                    ? data.aliases
+                    : [],
+
+            personality:
+                Array.isArray(data.personality)
+                    ? data.personality
+                    : [],
+
+            biography:
+                data.biography || '',
+
+            knowledge:
+                Array.isArray(data.knowledge)
+                    ? data.knowledge
+                    : [],
+
+            currentState:
+                data.currentState || '',
+
+            notes:
+                data.notes || '',
+
+            createdAt:
+                Date.now(),
+
+            updatedAt:
+                Date.now()
+
+        };
+
+
+        characters.push(character);
+
+
+        saveCharacters(characters);
+
+
+        console.log(
+            '[Canon Store] Персонаж добавлен:',
+            character.name
+        );
+
+
+        return character;
+
+    }
+
+
+    // -----------------------------------------------------
+    // Получить всех персонажей
+    // -----------------------------------------------------
+
+    function getCharacters() {
+
+        return loadCharacters();
+
+    }
+
+
+    // -----------------------------------------------------
+    // Найти персонажа по имени
+    // -----------------------------------------------------
+
+    function findCharacter(name) {
+
+        if (!name) {
+            return null;
+        }
+
+
+        const searchName =
+            String(name)
+                .trim()
+                .toLowerCase();
+
+
+        const characters =
+            loadCharacters();
+
+
+        return characters.find(
+            function (character) {
+
+                if (
+                    String(character.name)
+                        .trim()
+                        .toLowerCase() === searchName
+                ) {
+
+                    return true;
+
+                }
+
+
+                if (
+                    Array.isArray(
+                        character.aliases
+                    )
+                ) {
+
+                    return character.aliases.some(
+                        function (alias) {
+
+                            return String(alias)
+                                .trim()
+                                .toLowerCase() === searchName;
+
+                        }
+                    );
+
+                }
+
+
+                return false;
+
+            }
+        ) || null;
+
+    }
+
+
+    // -----------------------------------------------------
+    // Удаление персонажа
+    // -----------------------------------------------------
+
+    function removeCharacter(id) {
+
+        const characters =
+            loadCharacters();
+
+
+        const filtered =
+            characters.filter(
+                function (character) {
+
+                    return character.id !== id;
+
+                }
+            );
+
+
+        if (
+            filtered.length ===
+            characters.length
+        ) {
+
+            return false;
+
+        }
+
+
+        saveCharacters(filtered);
+
+
+        return true;
+
+    }
+
+
+    // -----------------------------------------------------
+    // Публичный API
+    // -----------------------------------------------------
+
+    window.CanonCharacterStore = {
+
+        addCharacter:
+            addCharacter,
+
+        getCharacters:
+            getCharacters,
+
+        findCharacter:
+            findCharacter,
+
+        removeCharacter:
+            removeCharacter,
+
+        saveCharacters:
+            saveCharacters
+
+    };
+
+
+    // -----------------------------------------------------
+    // Проверка загрузки
+    // -----------------------------------------------------
+
+    const characters =
+        loadCharacters();
+
+
+    console.log(
+        '[Canon Store] персонажи: готово',
+        'Количество:',
+        characters.length
+    );
+
+
+})();
